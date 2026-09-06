@@ -1,0 +1,4 @@
+cycle_id=2026-09-06T21-56-CAIRN-15
+runner=CAIRN-15
+mode=LOCAL_PAPER_LEDGER
+requested_at_adelaide=2026-09-06T21:56:00+09:30

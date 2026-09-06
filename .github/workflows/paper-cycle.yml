@@ -1,8 +1,8 @@
-name: Cairn Paper Cycle CAIRN-11
+name: Cairn Paper Cycle CAIRN-13
 
 on:
   push:
-    branches: [auto/paper-cycle-cairn11-20260906T1840]
+    branches: [auto/paper-cycle-cairn13-20260906T1848]
     paths:
       - .github/workflows/paper-cycle.yml
   workflow_dispatch:
@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      CAIRN_RUNNER_ID: CAIRN-11
-      CAIRN_CYCLE_ID: 2026-09-06T18-40-CAIRN-11
+      CAIRN_RUNNER_ID: CAIRN-13
+      CAIRN_CYCLE_ID: 2026-09-06T18-48-CAIRN-13
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -50,8 +50,8 @@ jobs:
           python - "$report" <<'PY'
           import json, sys
           p=json.load(open(sys.argv[1]))
-          assert p["cycle_id"] == "2026-09-06T18-40-CAIRN-11", p
-          assert p["runner"] == "CAIRN-11", p
+          assert p["cycle_id"] == "2026-09-06T18-48-CAIRN-13", p
+          assert p["runner"] == "CAIRN-13", p
           assert p["status"] == "COMPLETED", p
           assert p["minimum_paper_trade_per_cycle_satisfied"] is True, p
           fill=p["exploration"]["fill"]

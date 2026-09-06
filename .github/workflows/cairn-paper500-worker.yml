@@ -26,9 +26,12 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          python-version: '3.13'
-      - name: Install pinned audited execution code
-        run: python -m pip install -e .
+          python-version: '3.13.15'
+      - name: Install pinned audited execution code and tested dependency versions
+        run: >-
+          python -m pip install -e .
+          'pydantic==2.13.5' 'pydantic-core==2.46.5'
+          'annotated-types==0.8.0' 'typing-extensions==4.16.0' 'typing-inspection==0.4.4'
       - name: Restore and authenticate cumulative 500 USDT checkpoint
         id: restore
         env:
@@ -42,7 +45,7 @@ jobs:
       - name: Persist shared account and full audit chain
         id: state
         if: steps.execute.outputs.state_verified == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cairn-state-cairn-500-usdt-20260906-v1
           path: state500/
@@ -51,7 +54,7 @@ jobs:
       - name: Persist cycle or explicit failure evidence
         id: cycle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cairn-cycle500-${{ github.run_id }}
           path: paper500-output/
@@ -66,7 +69,7 @@ jobs:
         run: python scripts/paper500_ops.py verify --state-id "$STATE_ID" --cycle-id "$CYCLE_ID"
       - name: Publish verified acceptance receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cairn-acceptance500-${{ github.run_id }}
           path: paper500-acceptance/

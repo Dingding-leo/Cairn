@@ -41,7 +41,7 @@ jobs:
             unzip -oq /tmp/cairn-state.zip -d state
           fi
       - name: Run complete paper cycle
-        run: python scripts/run_cairn14_retry.py
+        run: python scripts/run_cairn14_retry2.py
       - name: Verify report and non-zero paper fill
         shell: bash
         run: |

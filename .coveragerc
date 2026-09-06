@@ -1,0 +1,11 @@
+[run]
+branch = True
+source = cairn
+
+[report]
+# The original packaged v0.5 release had a larger invariant suite. This repository
+# publication starts with a smaller canonical core and raises its gate as that suite
+# is ported rather than fabricating a 95% number by omitting modules.
+fail_under = 65
+show_missing = True
+skip_covered = True

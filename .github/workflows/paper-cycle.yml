@@ -9,6 +9,7 @@ on:
       - scripts/run_full_paper_cycle_v4.py
       - scripts/run_full_paper_cycle_v5.py
       - .github/workflows/paper-cycle.yml
+      - .cairn/current-cycle.txt
       - .cairn/triggers/**
   workflow_dispatch:
 
@@ -25,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      CAIRN_RUNNER_ID: CAIRN-15
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -51,11 +51,13 @@ jobs:
         run: |
           set -euo pipefail
           report="$(find artifacts -name cycle-report.json -print -quit)"
-          python - "$report" <<'PY'
+          expected="$(tr -d '\r\n' < .cairn/current-cycle.txt)"
+          python - "$report" "$expected" <<'PY'
           import json, sys
           p=json.load(open(sys.argv[1]))
+          expected=sys.argv[2]
           assert p["status"] == "COMPLETED", p
-          assert p["cycle_id"] == "2026-09-06T18-56-CAIRN-15", p
+          assert p["cycle_id"] == expected, (p, expected)
           assert p["minimum_paper_trade_per_cycle_satisfied"] is True, p
           assert p["audit_chain_valid"] is True, p
           assert p["reconciliation"]["internal_ledger"] == "MATCH", p

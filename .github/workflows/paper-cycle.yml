@@ -5,6 +5,7 @@ on:
     branches: [auto/paper-cycle-runner]
     paths:
       - scripts/run_full_paper_cycle_v2.py
+      - scripts/run_full_paper_cycle_v3.py
       - .github/workflows/paper-cycle.yml
       - .cairn/triggers/**
   workflow_dispatch:
@@ -42,7 +43,7 @@ jobs:
             unzip -oq /tmp/cairn-state.zip -d state
           fi
       - name: Run complete paper cycle
-        run: python scripts/run_full_paper_cycle_v2.py
+        run: python scripts/run_full_paper_cycle_v3.py
       - name: Verify report and non-zero paper fill
         shell: bash
         run: |

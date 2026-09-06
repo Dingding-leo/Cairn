@@ -1,0 +1,20 @@
+{
+  "okx": {
+    "host": "openapi.okx.com",
+    "timeout_seconds": 10.0,
+    "max_response_bytes": 5000000,
+    "max_quote_age_ms": 120000
+  },
+  "screen": {
+    "quote_currency": "USDT",
+    "min_quote_volume_24h": "1000000",
+    "max_spread_bps": "50",
+    "detail_limit": 12,
+    "deep_research_limit": 4
+  },
+  "notes": [
+    "Research policy only; not a trading authorization.",
+    "Volume thresholds are triage heuristics, not executable-liquidity guarantees.",
+    "Existing holdings must be reviewed even when they fail new-entry filters."
+  ]
+}

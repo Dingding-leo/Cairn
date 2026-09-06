@@ -1,0 +1,49 @@
+name: Cairn 500 USDT Read-only Audit
+on:
+  push:
+    branches: [auto/paper-cycle-runner]
+    paths: [.github/workflows/paper-audit-500.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Export tracked source and inspect public instrument minimums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p audit
+          git archive --format=zip HEAD -o audit/source.zip
+          python - <<'PY'
+          import json, urllib.request, urllib.parse
+          from datetime import datetime, timezone
+          result={'checked_at': datetime.now(timezone.utc).isoformat(), 'mode':'READ_ONLY_PUBLIC_DATA', 'orders_submitted':0, 'instruments':{}}
+          for symbol in ['BTC-USDT','ETH-USDT']:
+              item={}
+              for endpoint,params in [('instruments',{'instType':'SPOT','instId':symbol}),('ticker',{'instId':symbol})]:
+                  segment='public' if endpoint=='instruments' else 'market'
+                  path='/api/v5/'+segment+'/'+endpoint+'?'+urllib.parse.urlencode(params)
+                  for host in ['https://www.okx.com','https://openapi.okx.com']:
+                      try:
+                          req=urllib.request.Request(host+path,headers={'User-Agent':'Cairn-paper-audit/1','Accept':'application/json'})
+                          with urllib.request.urlopen(req,timeout=10) as response: data=json.load(response)
+                          if data.get('code')!='0': raise ValueError('provider_status')
+                          item[endpoint]=data['data']
+                          break
+                      except Exception as exc: item[endpoint+'_error']=type(exc).__name__
+              result['instruments'][symbol]=item
+          open('audit/public-sizing-evidence.json','w').write(json.dumps(result,indent=2,sort_keys=True))
+          print(json.dumps(result,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cairn-audit-500-${{ github.run_id }}
+          path: audit/
+          retention-days: 30
+          if-no-files-found: error

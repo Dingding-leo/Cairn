@@ -1,0 +1,17 @@
+name: CAIRN-15 Full Paper Cycle (500 USDT)
+on:
+  schedule:
+    - cron: '56 * * * *'
+      timezone: Australia/Adelaide
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/cairn-15-paper500.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  cycle:
+    uses: ./.github/workflows/cairn-paper500-worker.yml
+    with:
+      runner: 15

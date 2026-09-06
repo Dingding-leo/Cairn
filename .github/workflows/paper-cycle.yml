@@ -6,6 +6,7 @@ on:
     paths:
       - scripts/run_full_paper_cycle_v2.py
       - scripts/run_full_paper_cycle_v3.py
+      - scripts/run_full_paper_cycle_v4.py
       - .github/workflows/paper-cycle.yml
       - .cairn/triggers/**
   workflow_dispatch:
@@ -23,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      CAIRN_RUNNER_ID: CAIRN-07
+      CAIRN_RUNNER_ID: CAIRN-15
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -43,7 +44,7 @@ jobs:
             unzip -oq /tmp/cairn-state.zip -d state
           fi
       - name: Run complete paper cycle
-        run: python scripts/run_full_paper_cycle_v3.py
+        run: python scripts/run_full_paper_cycle_v4.py
       - name: Verify report and non-zero paper fill
         shell: bash
         run: |
@@ -54,10 +55,14 @@ jobs:
           p=json.load(open(sys.argv[1]))
           assert p["status"] == "COMPLETED", p
           assert p["minimum_paper_trade_per_cycle_satisfied"] is True, p
+          assert p["audit_chain_valid"] is True, p
+          assert p["reconciliation"]["internal_ledger"] == "MATCH", p
           fill=p["exploration"]["fill"]
           assert float(fill["fill_quantity"]) > 0, fill
+          assert fill["simulated_fill"] is True, fill
           assert fill["live_order_submitted"] is False, fill
-          print(json.dumps({"cycle_id":p["cycle_id"],"fill":fill}, sort_keys=True))
+          assert fill["execution_mode"] == "LOCAL_PAPER_LEDGER", fill
+          print(json.dumps({"cycle_id":p["cycle_id"],"fill":fill,"reconciliation":p["reconciliation"]}, sort_keys=True))
           PY
       - name: Upload cycle record
         if: always()

@@ -4,7 +4,7 @@ on:
   push:
     branches: [auto/paper-cycle-runner]
     paths:
-      - scripts/run_full_paper_cycle.py
+      - scripts/run_full_paper_cycle_v2.py
       - .github/workflows/paper-cycle.yml
       - .cairn/triggers/**
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
             unzip -oq /tmp/cairn-state.zip -d state
           fi
       - name: Run complete paper cycle
-        run: python scripts/run_full_paper_cycle.py
+        run: python scripts/run_full_paper_cycle_v2.py
       - name: Verify report and non-zero paper fill
         shell: bash
         run: |
@@ -59,12 +59,15 @@ jobs:
           print(json.dumps({"cycle_id":p["cycle_id"],"fill":fill}, sort_keys=True))
           PY
       - name: Upload cycle record
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cairn-cycle-${{ github.run_id }}
           path: artifacts/
           retention-days: 30
+          if-no-files-found: error
       - name: Upload shared paper state
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: cairn-shared-state

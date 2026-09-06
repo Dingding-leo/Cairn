@@ -41,7 +41,7 @@ jobs:
             unzip -oq /tmp/cairn-state.zip -d state
           fi
       - name: Run complete paper cycle
-        run: python scripts/run_full_paper_cycle_v3.py
+        run: python scripts/run_cairn14_retry.py
       - name: Verify report and non-zero paper fill
         shell: bash
         run: |
@@ -58,6 +58,8 @@ jobs:
           assert float(fill["fill_quantity"]) > 0, fill
           assert fill["live_order_submitted"] is False, fill
           assert fill["execution_mode"] == "LOCAL_PAPER_LEDGER", fill
+          assert fill["trade_origin"] == "exploration", fill
+          assert p["reconciliation"]["internal_ledger"] == "MATCH", p
           assert p["audit_chain_valid"] is True, p
           print(json.dumps({"cycle_id":p["cycle_id"],"runner":p["runner"],"fill":fill,"audit_chain_valid":p["audit_chain_valid"]}, sort_keys=True))
           PY

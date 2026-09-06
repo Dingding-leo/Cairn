@@ -7,6 +7,7 @@ on:
       - scripts/run_full_paper_cycle_v2.py
       - scripts/run_full_paper_cycle_v3.py
       - scripts/run_full_paper_cycle_v4.py
+      - scripts/run_full_paper_cycle_v5.py
       - .github/workflows/paper-cycle.yml
       - .cairn/triggers/**
   workflow_dispatch:
@@ -44,7 +45,7 @@ jobs:
             unzip -oq /tmp/cairn-state.zip -d state
           fi
       - name: Run complete paper cycle
-        run: python scripts/run_full_paper_cycle_v4.py
+        run: python scripts/run_full_paper_cycle_v5.py
       - name: Verify report and non-zero paper fill
         shell: bash
         run: |
@@ -54,6 +55,7 @@ jobs:
           import json, sys
           p=json.load(open(sys.argv[1]))
           assert p["status"] == "COMPLETED", p
+          assert p["cycle_id"] == "2026-09-06T18-56-CAIRN-15", p
           assert p["minimum_paper_trade_per_cycle_satisfied"] is True, p
           assert p["audit_chain_valid"] is True, p
           assert p["reconciliation"]["internal_ledger"] == "MATCH", p

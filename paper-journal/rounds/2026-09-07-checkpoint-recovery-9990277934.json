@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "mode": "GITHUB_CHAT_PAPER_JOURNAL",
+  "record_type": "CHECKPOINT_RECONCILIATION",
+  "cycle_id": "2026-09-07T12-06-36-CHECKPOINT-RECOVERY",
+  "recorded_at_utc": "2026-09-07T12:06:36.554183+00:00",
+  "previous_round": {
+    "path": "paper-journal/rounds/73f065a7e4ccc79eb368ecb2526129a3a2c3b07a4d6bedb2d800b7bfbbec4be3.json",
+    "blob_sha": "359864eab74748ad31eeafd2b306cf96ccfa74e8"
+  },
+  "processed_cycle_keys": [
+    "73f065a7e4ccc79eb368ecb2526129a3a2c3b07a4d6bedb2d800b7bfbbec4be3"
+  ],
+  "status": "HISTORICAL_CHECKPOINT_RECONCILED_FOR_OWNER_SELECTED_CHAT_JOURNAL",
+  "account": {
+    "epoch": "cairn-500-usdt-20260906-v1",
+    "historical_initial_capital_usdt": "500",
+    "current_cash_usdt": "499.986797971",
+    "current_nav_usdt": "499.986797971",
+    "positions": [],
+    "ledger_sequence": 16,
+    "verification": "VERIFIED_JOURNAL_CHECKPOINT",
+    "checkpoint_provenance": {
+      "artifact_id": 9990277934,
+      "artifact_sha256": "sha256:47945ebf6db68201599f8149bc9149743e28dda61a74d3f680e1beafd7bbeb6b",
+      "source_run_id": 34036324735,
+      "source_commit": "81d01f4f9f76bd98f0d0a9eef61616936ab85720",
+      "source_last_observed_at_utc": "2026-09-06T13:31:14.440559+00:00",
+      "retrieved_and_verified_at_utc": "2026-09-07T12:06:36.554183+00:00",
+      "latest_retained_epoch_artifact_verified": true,
+      "sqlite_sha256": "d295a7ad42e8c5f84effcbd2b5ab8946e7ba1a3a8715266968fc854c1b6cbc90",
+      "audit_and_payload_hashes_verified": true,
+      "all_16_fills_replayed_exactly": true,
+      "migration_basis": "Owner selected chat-led simulation with GitHub persistence. Explicitly recover the latest retained 500-USDT account checkpoint; both later journal records contain zero fills. This is a documented journal migration, not a claim that a local runtime is deployed or monitored."
+    },
+    "fees_usdt": "0.012779029",
+    "realized_net_pnl_usdt": {
+      "CORE": "0",
+      "EXPLORATION": "-0.013202029",
+      "LEGACY": "0"
+    },
+    "unrealized_net_pnl_usdt": {
+      "CORE": "0",
+      "EXPLORATION": "0",
+      "LEGACY": "0"
+    },
+    "peak_nav_usdt": "500",
+    "gross_exposure_usdt": "0",
+    "original_open_risk_usdt": "0",
+    "total_net_pnl_usdt": "-0.013202029",
+    "day": {
+      "date": "2026-09-07",
+      "start_nav_usdt": "499.986797971",
+      "basis": "FIRST_OBSERVED_NAV_OF_ADELAIDE_DAY_ALL_CASH_RECOVERED_ACCOUNT"
+    },
+    "last_observed_at_utc": "2026-09-06T13:31:14.440559+00:00",
+    "reset_performed": false
+  },
+  "simulated_fills": [],
+  "minimum_new_entry_satisfied": false,
+  "full_strategy_cycle_completed": false,
+  "live_order_submitted": false,
+  "continuous_protection": false,
+  "review": {
+    "finding": "All 16 historical fills reconcile exactly to cash, position quantity, basis and fees at every sequence. Latest state is flat. Historical net loss retained. No intervening trades fabricated.",
+    "historical_fills": 16,
+    "historical_net_pnl_usdt": "-0.013202029"
+  },
+  "scheduling": {
+    "changes_made": false,
+    "active_state": "UNVERIFIED"
+  }
+}

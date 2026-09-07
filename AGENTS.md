@@ -8,6 +8,10 @@ This supersedes the source-only / no-Git-state restrictions below ONLY for that 
 
 No GitHub Actions, paid execution, live orders, scheduler-limit workaround, or schedule activation is authorized by journal storage. Never confuse a journal commit with a trade or a running schedule. The local-runtime requirements below still apply when actually using the local-runtime mode; they must not be used to mislabel chat-journal setup as a failed host deployment.
 
+## Owner revision — 2026-09-07: simulated leverage
+
+The owner explicitly requested leverage with a 100x maximum. In GITHUB_CHAT_PAPER_JOURNAL only, use the v2 runner's long-only simulated USDT borrowing with maximum gross exposure 100 times marked equity. This replaces the journal's prior no-leverage and 100%-gross constraints. It does not change the original shared capital, existing lots, per-entry notional cap, stop-risk reservations, lot count, or daily-loss gate. Borrowing is a liability, never new capital. Apply the declared financing and observation-based liquidation model in paper-journal/README.md. No live borrowing or orders are authorized.
+
 ## Previous local-runtime operating boundary
 
 This repository is SOURCE, not a remote executor or an authoritative account database.

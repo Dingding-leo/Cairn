@@ -257,5 +257,104 @@ class JournalTests(unittest.TestCase):
         self.assertEqual(m.git_blob(b"hello\n"), "ce013625030ba8dba906f756967f9e9ca394464a")
 
 
+class MarginTests(unittest.TestCase):
+    def margin_checkpoint(self, bid="99.99", depth="1000"):
+        prev, market = fixture()
+        prev["account"].update(current_cash_usdt="0", borrowed_usdt="500", financing_cost_usdt="0",
+                               financing_observed_at_utc=NOW.isoformat(), positions=[{
+            "trade_id": "synthetic-margin", "instrument": "BTC-USDT", "origin": "EXPLORATION",
+            "quantity": "10", "entry": "100", "cost_basis_usdt": "1000", "original_risk_usdt": "5",
+            "stop": "90", "take_profit": "120", "lot_size": "0.001", "latched_exit": None}])
+        market["books"]["body"]["data"][0]["bids"][0] = [bid, depth]
+        del market["instruments"]
+        return prev, market
+
+    def test_third_entry_borrows_without_creating_equity(self):
+        prev, market = fixture()
+        for n in range(3):
+            prev = run(prev, market, now=NOW + timedelta(seconds=n), scheduled_at=None)
+        self.assertEqual(prev["new_exploration_entries"], 1)
+        a = prev["account"]
+        self.assertGreater(D(a["borrowed_usdt"]), 0)
+        self.assertEqual(D(a["current_cash_usdt"]), 0)
+        self.assertEqual(a["max_gross_leverage"], "100")
+        with localcontext() as ctx:
+            ctx.prec = 80
+            self.assertEqual(D(a["current_nav_usdt"]), D(a["gross_exposure_usdt"]) - D(a["borrowed_usdt"]))
+            self.assertEqual(sum(D(p["cost_basis_usdt"]) for p in a["positions"]) - D(a["borrowed_usdt"]), D("500"))
+
+    def test_financing_accrues_and_next_round_reconciles(self):
+        prev, market = self.margin_checkpoint()
+        prev["account"]["financing_observed_at_utc"] = (NOW - timedelta(days=1)).isoformat()
+        result = run(prev, market)
+        a = result["account"]
+        self.assertGreater(D(a["financing_cost_usdt"]), 0)
+        with localcontext() as ctx:
+            ctx.prec = 80
+            self.assertEqual(D(a["borrowed_usdt"]), D("500") + D(a["financing_cost_usdt"]))
+            self.assertEqual(D(a["realized_net_pnl_usdt"]["EXPLORATION"]), -D(a["financing_cost_usdt"]))
+        again = run(result, market, now=NOW + timedelta(seconds=1), scheduled_at=None)
+        self.assertNotIn("CHECKPOINT_ACCOUNTING_MISMATCH", again["blockers"])
+        self.assertGreater(D(again["account"]["financing_cost_usdt"]), D(a["financing_cost_usdt"]))
+
+    def test_missing_debt_timestamp_blocks_without_mutation(self):
+        prev, market = self.margin_checkpoint()
+        del prev["account"]["financing_observed_at_utc"]
+        result = run(prev, market)
+        self.assertIn("MISSING_FINANCING_TIMESTAMP", result["blockers"])
+        self.assertEqual(result["account"], prev["account"])
+
+    def test_stop_exit_repays_debt(self):
+        prev, market = self.margin_checkpoint(bid="89")
+        result = run(prev, market)
+        self.assertEqual(result["exits"], 1)
+        self.assertEqual(D(result["account"]["borrowed_usdt"]), 0)
+        self.assertEqual(D(result["account"]["debt_repaid_this_round_usdt"]), 500)
+        self.assertGreater(D(result["account"]["current_cash_usdt"]), 0)
+
+    def test_gap_liquidation_preserves_negative_equity(self):
+        prev, market = self.margin_checkpoint(bid="49")
+        result = run(prev, market)
+        self.assertEqual(result["simulated_fills"][0]["reason"], "MARGIN_LIQUIDATION")
+        self.assertIn("MARGIN_LIQUIDATION_OBSERVED", result["blockers"])
+        self.assertEqual(result["account"]["positions"], [])
+        self.assertLess(D(result["account"]["current_nav_usdt"]), 0)
+        self.assertGreater(D(result["account"]["borrowed_usdt"]), 0)
+
+    def test_partial_liquidation_latches_remainder(self):
+        prev, market = self.margin_checkpoint(bid="49", depth="1")
+        result = run(prev, market)
+        lot = result["account"]["positions"][0]
+        self.assertEqual(lot["quantity"], "9")
+        self.assertEqual(lot["latched_exit"], "MARGIN_LIQUIDATION")
+        self.assertFalse(result["minimum_new_entry_satisfied"])
+
+    def test_post_fee_leverage_cap(self):
+        from unittest.mock import patch
+        prev, market = fixture()
+        with patch.object(m, "MAX_LEVERAGE", D("1")):
+            for n in range(3):
+                prev = run(prev, market, now=NOW + timedelta(seconds=n), scheduled_at=None)
+        self.assertIn("BLOCKED_CAPITAL_OR_RISK_CAPACITY", prev["blockers"])
+        self.assertEqual(D(prev["account"]["borrowed_usdt"]), 0)
+
+    def test_time_exit_uses_current_bid(self):
+        first = run()
+        first["account"]["positions"][0]["exit_due_at_utc"] = NOW.isoformat()
+        _, market = fixture()
+        del market["instruments"]
+        result = run(first, market, scheduled_at=None)
+        self.assertEqual(result["simulated_fills"][0]["reason"], "TIME_EXIT")
+        self.assertEqual(D(result["simulated_fills"][0]["price"]), D("99.99") * D("0.9995"))
+
+    def test_financing_reserve_in_planned_risk(self):
+        fill = run()["simulated_fills"][0]
+        self.assertGreater(D(fill["financing_reserve_24h_usdt"]), 0)
+        with localcontext() as ctx:
+            ctx.prec = 80
+            risk = D(fill["quantity"]) * (D(fill["entry"]) * D("1.001") - D(fill["stop"]) * D("0.9995") * D("0.999")) + D(fill["financing_reserve_24h_usdt"])
+            self.assertEqual(risk, D(fill["original_risk_usdt"]))
+
+
 if __name__ == "__main__":
     unittest.main()

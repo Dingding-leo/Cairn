@@ -57,9 +57,7 @@ private credentials, or a paid service for this mode.
    by USDT turnover for research priority, validates BTC book/confirmed 1H ATR,
    processes observation-based exits before new-entry admission, and evaluates
    the approved BTC exploration sampler. It does NOT invent an approved CORE
-   model, perform fundamental valuation, or claim alpha. Existing risk limits
-   and modeled 10-basis-point entry/exit fees and 5-basis-point exit slippage
-   are retained. New entries use top ask only with sufficient observed size;
+   model, perform fundamental valuation, or claim alpha. The owner-approved 100x maximum long-only simulated borrowing policy applies. Retain all other risk limits and modeled 10-basis-point entry/exit fees and 5-basis-point exit slippage. Deduct debt from NAV, accrue declared financing, repay debt from exits, and apply observed liquidation/time exits as documented in README.md. New entries use top ask only with sufficient observed size;
    exits share one observed bid-depth budget and an OCO latch. Stops and targets
    are `OBSERVATION_RULES_ONLY`, never `ARMED` continuous protection.
 6. Complete the public decision summary and previous-round review with the

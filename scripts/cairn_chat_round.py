@@ -12,16 +12,19 @@ import copy
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, localcontext
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 MODE = "GITHUB_CHAT_PAPER_JOURNAL"
-VERSION = "chat-paper-round-v1"
+VERSION = "chat-paper-round-v2-margin"
 ADELAIDE = ZoneInfo("Australia/Adelaide")
 D = Decimal
 FEE, SLIP = D("0.001"), D("0.0005")
+MAX_LEVERAGE = D("100")
+BORROW_APR = D("0.10")  # Declared simulation assumption, not an exchange rate.
+MAINTENANCE_RATIO = D("0.005")
 ALLOWED = {
     "ticker": "/api/v5/market/ticker?instId=BTC-USDT",
     "books": "/api/v5/market/books?instId=BTC-USDT&sz=5",
@@ -41,7 +44,7 @@ def require(ok: bool, reason: str) -> None:
 
 
 def number(value: str) -> Decimal:
-    require(isinstance(value, str) and bool(re.fullmatch(r"-?\d{1,30}(?:\.\d{1,30})?", value)), "INVALID_DECIMAL")
+    require(isinstance(value, str) and bool(re.fullmatch(r"-?\d{1,30}(?:\.\d{1,100})?", value)), "INVALID_DECIMAL")
     return D(value)
 
 
@@ -107,20 +110,23 @@ def stop_distance(market: dict, now: datetime, entry: Decimal) -> Decimal:
     return max(D("1.5") * sum(tr) / D(14), D("0.01") * entry)
 
 
-def preview(nav: Decimal, entry: Decimal, distance: Decimal, lot: Decimal, tick: Decimal, minimum: Decimal) -> dict:
+def preview(nav: Decimal, entry: Decimal, distance: Decimal, lot: Decimal, tick: Decimal, minimum: Decimal,
+            financing_reserve_rate: Decimal = D("0")) -> dict:
     require(nav > 0 and entry > 0 and distance > 0 and lot > 0 and tick > 0 and minimum > 0, "INVALID_SIZING_INPUT")
     require(entry % tick == 0, "OFF_TICK_ENTRY")
     stop = increment(entry - distance, tick, ROUND_FLOOR)
     require(0 < stop < entry, "INVALID_STOP")
-    unit = entry * (1 + FEE) - stop * (1 - SLIP) * (1 - FEE)
+    reserve = (entry * financing_reserve_rate).quantize(D("0.000000000000000001"), rounding=ROUND_CEILING)
+    unit = entry * (1 + FEE) - stop * (1 - SLIP) * (1 - FEE) + reserve
     qty = increment(max(nav * D("0.005") / unit, minimum), lot, ROUND_CEILING)
     risk = qty * unit
     require(nav * D("0.005") <= risk <= nav * D("0.0051"), "LOT_ROUNDING_EXCEEDS_RISK_BAND")
-    tp = increment((entry * (1 + FEE) + 2 * unit) / ((1 - SLIP) * (1 - FEE)), tick, ROUND_CEILING)
-    reward = qty * (tp * (1 - SLIP) * (1 - FEE) - entry * (1 + FEE))
+    tp = increment((entry * (1 + FEE) + reserve + 2 * unit) / ((1 - SLIP) * (1 - FEE)), tick, ROUND_CEILING)
+    reward = qty * (tp * (1 - SLIP) * (1 - FEE) - entry * (1 + FEE) - reserve)
     require(reward >= 2 * risk, "INVALID_NET_REWARD")
     return {"quantity": qty, "entry": entry, "stop": stop, "take_profit": tp, "original_risk": risk,
-            "notional": qty * entry, "fee": qty * entry * FEE, "net_rr": reward / risk, "nav_at_entry": nav}
+            "notional": qty * entry, "fee": qty * entry * FEE, "net_rr": reward / risk, "nav_at_entry": nav,
+            "financing_reserve": qty * reserve}
 
 
 def mutate_account(account: dict, market: dict, now: datetime, cycle_key: str) -> tuple[dict, list, list]:
@@ -133,23 +139,39 @@ def mutate_account(account: dict, market: dict, now: datetime, cycle_key: str) -
     state = copy.deepcopy(account)
     cash = number(state["current_cash_usdt"])
     require(cash >= 0, "INVALID_CASH")
+    debt = number(state.get("borrowed_usdt", "0"))
+    financing = number(state.get("financing_cost_usdt", "0"))
+    require(debt >= 0 and financing >= 0, "INVALID_DEBT_OR_FINANCING")
     lots = state["positions"]
     require(len({p["trade_id"] for p in lots}) == len(lots), "DUPLICATE_LOTS")
     for p in lots:
         require(p.get("instrument") == "BTC-USDT" and p.get("origin") in {"CORE", "EXPLORATION", "LEGACY"}, "UNSUPPORTED_EXISTING_LOT")
         require(number(p["quantity"]) > 0 and number(p["cost_basis_usdt"]) > 0 and number(p["original_risk_usdt"]) > 0, "INVALID_LOT_ACCOUNTING")
         require(0 < number(p["stop"]) < number(p["entry"]) < number(p["take_profit"]), "INVALID_EXISTING_BRACKET")
-        require(p.get("latched_exit") in {None, "STOP_LOSS", "TAKE_PROFIT"}, "INVALID_EXIT_LATCH")
+        require(p.get("latched_exit") in {None, "STOP_LOSS", "TAKE_PROFIT", "MARGIN_LIQUIDATION", "TIME_EXIT"}, "INVALID_EXIT_LATCH")
+        if p.get("exit_due_at_utc"):
+            stamp(p["exit_due_at_utc"])
     totals = state["realized_net_pnl_usdt"]
     realized = {origin: number(totals[origin]) for origin in ("CORE", "EXPLORATION", "LEGACY")}
     fees = number(state["fees_usdt"])
     require(fees >= 0, "INVALID_FEES")
-    require(abs(cash + sum((number(p["cost_basis_usdt"]) for p in lots), D(0)) - D("500") - sum(realized.values())) <= D("1e-45"), "CHECKPOINT_ACCOUNTING_MISMATCH")
+    require(abs(cash + sum((number(p["cost_basis_usdt"]) for p in lots), D(0)) - debt - D("500") - sum(realized.values())) <= D("1e-45"), "CHECKPOINT_ACCOUNTING_MISMATCH")
+    interest = D(0)
+    if debt:
+        require(bool(state.get("financing_observed_at_utc")), "MISSING_FINANCING_TIMESTAMP")
+        elapsed = D(str((now - stamp(state["financing_observed_at_utc"])).total_seconds()))
+        require(elapsed >= 0, "FUTURE_FINANCING_TIMESTAMP")
+        interest = (debt * BORROW_APR * elapsed / D(31536000)).quantize(D("0.000000000000000001"), rounding=ROUND_CEILING)
+        debt += interest
+        financing += interest
+        realized["EXPLORATION"] -= interest
+    starting_gross = sum((number(p["quantity"]) * q["bid"] for p in lots), D(0))
+    liquidation = debt > 0 and starting_gross > 0 and cash + starting_gross - debt <= starting_gross * MAINTENANCE_RATIO
     fills, remaining = [], []
     bid_depth = q["bid_qty"]
     for p in sorted(lots, key=lambda p: p["trade_id"]):
         qty = number(p["quantity"])
-        reason = p.get("latched_exit") or ("STOP_LOSS" if q["bid"] <= number(p["stop"]) else "TAKE_PROFIT" if q["bid"] >= number(p["take_profit"]) else None)
+        reason = p.get("latched_exit") or ("MARGIN_LIQUIDATION" if liquidation else "STOP_LOSS" if q["bid"] <= number(p["stop"]) else "TAKE_PROFIT" if q["bid"] >= number(p["take_profit"]) else "TIME_EXIT" if p.get("exit_due_at_utc") and now >= stamp(p["exit_due_at_utc"]) else None)
         if not reason:
             remaining.append(p)
             continue
@@ -175,8 +197,10 @@ def mutate_account(account: dict, market: dict, now: datetime, cycle_key: str) -
             p["cost_basis_usdt"] = text(number(p["cost_basis_usdt"]) - basis)
             remaining.append(p)
     gross = sum((number(p["quantity"]) * q["bid"] for p in remaining), D(0))
-    nav = cash + gross
-    require(nav >= 0, "INVALID_NAV")
+    repaid = min(cash, debt)
+    cash -= repaid
+    debt -= repaid
+    nav = cash + gross - debt  # Preserve deficits after gaps; never clamp or reset.
     today = now.astimezone(ADELAIDE).date().isoformat()
     day = state.get("day", {})
     day_problem = None
@@ -188,6 +212,8 @@ def mutate_account(account: dict, market: dict, now: datetime, cycle_key: str) -
         day_problem = "FUTURE_DAY_CHECKPOINT"
     errors = []
     try:
+        require(not liquidation, "MARGIN_LIQUIDATION_OBSERVED")
+        require(nav > 0, "ACCOUNT_EQUITY_EXHAUSTED")
         require(day_problem is None, day_problem or "INVALID_DAY")
         require(number(day["start_nav_usdt"]) > 0 and nav > number(day["start_nav_usdt"]) * D("0.95"), "DAILY_LOSS_LIMIT")
         require(all(not p.get("latched_exit") for p in remaining), "EXISTING_EXIT_PENDING")
@@ -195,30 +221,41 @@ def mutate_account(account: dict, market: dict, now: datetime, cycle_key: str) -
         info = [i for i in info if i.get("instId") == "BTC-USDT" and i.get("instType") == "SPOT" and i.get("state") == "live"]
         require(len(info) == 1, "INVALID_INSTRUMENT")
         inst = info[0]
-        b = preview(nav, q["ask"], stop_distance(market, now, q["ask"]), number(inst["lotSz"]), number(inst["tickSz"]), number(inst["minSz"]))
+        b = preview(nav, q["ask"], stop_distance(market, now, q["ask"]), number(inst["lotSz"]), number(inst["tickSz"]), number(inst["minSz"]), BORROW_APR / D(365))
         reserved = sum((number(p["original_risk_usdt"]) for p in remaining), D(0))
+        post_entry_gross = gross + b["quantity"] * q["bid"]
+        post_entry_nav = nav - b["fee"] - b["quantity"] * (q["ask"] - q["bid"])
         require(len(remaining) < 10 and reserved + b["original_risk"] <= nav * D("0.05")
-                and b["notional"] <= nav * D("0.5") and gross + b["notional"] <= nav - b["fee"]
-                and b["notional"] + b["fee"] <= cash, "BLOCKED_CAPITAL_OR_RISK_CAPACITY")
+                and b["notional"] <= nav * D("0.5")
+                and post_entry_gross <= MAX_LEVERAGE * post_entry_nav, "BLOCKED_CAPITAL_OR_RISK_CAPACITY")
         require(b["quantity"] <= q["ask_qty"], "INSUFFICIENT_OBSERVED_ASK_DEPTH")
+        borrowed_now = max(D(0), b["notional"] + b["fee"] - cash)
+        debt += borrowed_now
+        cash += borrowed_now
         tid = cycle_key + ":exploration:BTC-USDT"
         lot_record = {"trade_id": tid, "entry_cycle_key": cycle_key, "instrument": "BTC-USDT", "origin": "EXPLORATION",
                       "experiment": "BTC_SPOT_ATR14_SAMPLER_V1_NOT_ALPHA", "quantity": text(b["quantity"]), "lot_size": inst["lotSz"],
                       "entry": text(b["entry"]), "stop": text(b["stop"]), "take_profit": text(b["take_profit"]),
                       "original_risk_usdt": text(b["original_risk"]), "cost_basis_usdt": text(b["notional"] + b["fee"]),
-                      "protection_state": "OBSERVATION_RULES_ONLY", "latched_exit": None}
+                      "protection_state": "OBSERVATION_RULES_ONLY", "latched_exit": None,
+                      "exit_due_at_utc": (now + timedelta(hours=24)).isoformat(),
+                      "financing_reserve_24h_usdt": text(b["financing_reserve"])}
         remaining.append(lot_record)
         cash -= b["notional"] + b["fee"]
         fees += b["fee"]
         fills.append({**lot_record, "fill_id": tid + ":fill", "order_id": tid + ":order", "position_effect": "OPEN",
                       "notional_usdt": text(b["notional"]), "fee_usdt": text(b["fee"]), "nav_at_entry": text(nav),
                       "planned_risk_pct": text(b["original_risk"] / nav * 100), "net_reward_risk": text(b["net_rr"]),
+                      "borrowed_for_entry_usdt": text(borrowed_now),
                       "observed_at_utc": now.isoformat(), "simulated_fill": True, "live_order_submitted": False})
     except (Blocked, KeyError, ValueError, TypeError, IndexError) as exc:
         errors.append(str(exc) if isinstance(exc, Blocked) else "INVALID_OR_MISSING_ENTRY_DATA")
     gross = sum((number(p["quantity"]) * q["bid"] for p in remaining), D(0))
     unrealized = {origin: sum((number(p["quantity"]) * q["bid"] - number(p["cost_basis_usdt"]) for p in remaining if p["origin"] == origin), D(0)) for origin in realized}
-    state.update(current_cash_usdt=text(cash), current_nav_usdt=text(cash + gross), positions=remaining,
+    state.update(current_cash_usdt=text(cash), current_nav_usdt=text(cash + gross - debt), positions=remaining,
+                 borrowed_usdt=text(debt), financing_cost_usdt=text(financing), financing_observed_at_utc=now.isoformat(),
+                 financing_charged_this_round_usdt=text(interest), debt_repaid_this_round_usdt=text(repaid),
+                 max_gross_leverage=text(MAX_LEVERAGE), margin_model="SIMULATED_LONG_SPOT_BORROWING",
                  fees_usdt=text(fees), gross_exposure_usdt=text(gross), ledger_sequence=state["ledger_sequence"] + 1,
                  original_open_risk_usdt=text(sum((number(p["original_risk_usdt"]) for p in remaining), D(0))),
                  realized_net_pnl_usdt={k: text(v) for k, v in realized.items()}, unrealized_net_pnl_usdt={k: text(v) for k, v in unrealized.items()},
@@ -299,6 +336,11 @@ def build_round(previous: dict, market: dict, *, runner: int, now: datetime, sch
                             "evaluation": {"scan_errors": scan["errors"], "admission_failures": blockers}, "promotion": "NONE", "active_risk_settings_changed": False,
                             "rollback_condition": "Any false acceptance, altered history, or regression requires reverting source; append corrections, never overwrite rounds."},
             "cost_assumptions": {"entry_fee_rate": text(FEE), "exit_fee_rate": text(FEE), "exit_slippage_rate": text(SLIP), "entry_model": "OBSERVED_TOP_ASK_WITH_SUFFICIENT_DEPTH", "fee_tier_claim": "MODELED_NOT_VERIFIED_ACCOUNT_FEE_TIER"},
+            "margin_assumptions": {"max_gross_leverage": text(MAX_LEVERAGE), "borrow_apr": text(BORROW_APR),
+                                   "maintenance_equity_to_gross_ratio": text(MAINTENANCE_RATIO),
+                                   "source": "DECLARED_SIMULATION_ASSUMPTIONS_NOT_EXCHANGE_TERMS",
+                                   "planned_financing_horizon_hours": 24,
+                                   "exit_model": "OBSERVED_BID_WITH_COSTS_AND_SHARED_DEPTH; delayed observations may exceed planned loss or financing reserve"},
             "continuous_protection": False, "live_order_submitted": False,
             "persistence": "LOCAL_OUTPUT_ONLY_UNTIL_GITHUB_COMMIT_AND_READBACK", "scheduling": {"changes_made": False, "active_state": "UNVERIFIED"}}
 

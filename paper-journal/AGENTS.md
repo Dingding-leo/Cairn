@@ -18,3 +18,5 @@ Do not modify any scheduled task during a round. These source files do not
 change native task prompts or enable paused tasks. Record active state as
 UNVERIFIED unless actual native task tools establish it. A source commit, unit
 test, or manual decision record does not prove recurring execution or alpha.
+
+The owner subsequently authorized simulated leverage with a 100x ceiling. Apply the v2 borrowing, financing, equity and liquidation model in README.md; preserve all other risk gates and existing history.

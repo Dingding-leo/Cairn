@@ -27,7 +27,7 @@ Each trading round must contain:
 
 Historical account epoch: `cairn-500-usdt-20260906-v1`. Historical starting capital: 500 USDT TOTAL. This is not proof of current cash or NAV. Do not reset, silently import the older 100,000-USDT epoch, or allocate capital per runner. A verified current checkpoint is required before account-affecting simulated fills.
 
-Existing risk constraints remain: spot-only, no leverage/shorts; per-entry planned stop risk 0.50–0.51% NAV including costs; modeled target >=2R net; aggregate original stop-risk reservations <=5% NAV; at most 10 open lots; per-entry notional <=50% NAV; spot gross <=100% NAV; 5% marked daily loss blocks new entries. Planned stop risk is not guaranteed maximum loss.
+Owner-approved margin policy (2026-09-07): long-only simulated spot borrowing, maximum gross leverage 100x; per-entry planned stop risk 0.50–0.51% NAV including costs; modeled target >=2R net; aggregate original stop-risk reservations <=5% NAV; at most 10 open lots; per-entry notional <=50% NAV; gross exposure <=100 times post-fee, bid-marked equity; 5% marked daily loss blocks new entries. Planned stop risk is not guaranteed maximum loss.
 
 ## Observation-based exit model
 
@@ -36,3 +36,13 @@ This chat journal has no continuously running stop monitor. Stops and targets ar
 ## First record
 
 See [2026-09-07-setup.json](rounds/2026-09-07-setup.json). It records setup and unresolved account continuity, not a market scan or trade.
+
+## Simulated leverage accounting — v2
+
+The owner requested **100x maximum**, not a target leverage. Existing per-entry notional <=50% NAV, <=10 lots, aggregate original stop risk <=5% NAV and per-entry planned risk 0.50–0.51% NAV remain binding, so actual permitted exposure can be far below 100x. Existing unleveraged lots retain their original brackets and cost basis. Missing debt fields in a valid v1 checkpoint mean zero existing debt, not a balance reset.
+
+Only the cash shortfall of a new entry is borrowed. `borrowed_usdt` is deducted from equity: cash + bid-marked assets - debt. Cash from exits repays debt before additional borrowing. Exact cost-basis continuity is cash + remaining cost basis - debt = 500 + cumulative realized net PnL.
+
+Declared simulation assumptions, **not OKX account terms**: borrowing APR 10%, accrued over the actual observation interval and added to debt, with cumulative financing costs recorded separately and debited to EXPLORATION realized PnL. The maintenance threshold is equity/gross <=0.5%; detected breaches latch observation-based liquidation exits using the current bid, shared available depth, 5bp adverse slippage and the modeled exit fee. Partial exits keep their liquidation latch. Gap losses and residual debt are preserved, including negative equity.
+
+For each new v2 entry, planned stop risk and net 2R target include a conservative 24-hour financing reserve on full notional. New lots have a 24-hour observation-based time exit. Actual exit occurs at the next available observation, so delayed runs can exceed this financing allowance and planned loss. Older lots keep their existing exit rules. No continuous protection, live loan, futures position or exchange liquidation fidelity is claimed.

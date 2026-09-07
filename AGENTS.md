@@ -1,5 +1,15 @@
 # Cairn operating boundary
 
+## Owner revision — 2026-09-07: GitHub chat paper journal
+
+The owner explicitly selected chat-led simulated trading and instructed: "just record your processes on github". For `GITHUB_CHAT_PAPER_JOURNAL` mode, GitHub may store decision summaries, public market evidence, simulated account state, and round reviews under `paper-journal/`. Follow [paper-journal/README.md](paper-journal/README.md).
+
+This supersedes the source-only / no-Git-state restrictions below ONLY for that owner-authorized simulated journal. A local host, official OKX demo account, and continuous guardian are not prerequisites for writing journal records. Do not claim continuous protection: journal stops/targets are observation-based simulated rules, not armed broker orders. Preserve existing capital, reconcile the current checkpoint before simulated account mutations, retain risk gates, and never fabricate prices, fills, outcomes, or execution times. No account reset is authorized.
+
+No GitHub Actions, paid execution, live orders, scheduler-limit workaround, or schedule activation is authorized by journal storage. Never confuse a journal commit with a trade or a running schedule. The local-runtime requirements below still apply when actually using the local-runtime mode; they must not be used to mislabel chat-journal setup as a failed host deployment.
+
+## Previous local-runtime operating boundary
+
 This repository is SOURCE, not a remote executor or an authoritative account database.
 
 ## Non-negotiable

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "cycle_id": "2026-09-07-setup",
+  "recorded_at_utc": "2026-09-07T08:25:06.875Z",
+  "record_type": "SETUP_AND_REVIEW",
+  "mode": "GITHUB_CHAT_PAPER_JOURNAL",
+  "status": "JOURNAL_CREATED_ACCOUNT_CONTINUITY_PENDING",
+  "previous_round": null,
+  "account": {
+    "epoch": "cairn-500-usdt-20260906-v1",
+    "historical_initial_capital_usdt": "500",
+    "current_cash_usdt": null,
+    "current_nav_usdt": null,
+    "positions": null,
+    "ledger_sequence": null,
+    "verification": "NO_CURRENT_CHECKPOINT_VERIFIED",
+    "reset_performed": false
+  },
+  "owner_instruction": "Use simulated decisions and trades, review next round, and record the process on GitHub.",
+  "source_evidence": [
+    "https://github.com/Dingding-leo/Cairn/blob/main/AGENTS.md",
+    "https://github.com/Dingding-leo/Cairn/blob/main/docs/PAPER500-OPERATIONS.md",
+    "https://github.com/Dingding-leo/Cairn/blob/main/docs/BRACKET-PAPER-POLICY.md",
+    "https://github.com/Dingding-leo/Cairn/blob/main/src/cairn/local_runtime.py"
+  ],
+  "scan": {
+    "performed": false,
+    "market_observations": [],
+    "full_scan_completed": false
+  },
+  "decisions": [
+    {
+      "action": "PRESERVE_ACCOUNT_AND_ESTABLISH_JOURNAL",
+      "rationale": "Owner authorized GitHub persistence for chat-led paper trading. Existing documentation identifies historical capital but does not establish current balances or open lots. Record unknown state explicitly; do not create fictitious funds or fills."
+    }
+  ],
+  "simulated_fills": [],
+  "live_order_submitted": false,
+  "minimum_new_entry_satisfied": false,
+  "full_strategy_cycle_completed": false,
+  "review": {
+    "previous_trading_outcome": "UNKNOWN",
+    "finding": "Earlier host and official-demo requirements do not apply to writing the newly authorized chat simulation journal. Current account state still requires reconciliation.",
+    "profitability_claimed": false
+  },
+  "improvement": {
+    "id": "JOURNAL-001",
+    "action": "Create an explicit GitHub journal with account continuity, sourced observations, net-cost accounting, and per-round review requirements.",
+    "hypothesis": "Preserving inputs and state transitions makes subsequent simulated results auditable.",
+    "validation": "Repository readback required after writes; no performance experiment has run.",
+    "promotion": "PROCESS_DOCUMENTATION_ONLY"
+  },
+  "blockers": [
+    "CURRENT_ACCOUNT_CHECKPOINT_NOT_VERIFIED"
+  ],
+  "next_step": "Recover and reconcile the latest checkpoint for the existing 500-USDT account, then fetch fresh public market data and append the first trading round.",
+  "scheduling": {
+    "changes_made": false,
+    "active_state": "UNVERIFIED",
+    "github_actions_used": false
+  },
+  "continuous_protection": false
+}

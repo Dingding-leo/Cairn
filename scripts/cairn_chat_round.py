@@ -24,6 +24,7 @@ D = Decimal
 FEE, SLIP = D("0.001"), D("0.0005")
 MAX_LEVERAGE = D("100")
 BORROW_APR = D("0.10")  # Declared simulation assumption, not an exchange rate.
+FINANCING_RESERVE_RATE = D("0.0003")  # 3bp/24h covers modeled APR and financed entry fees.
 MAINTENANCE_RATIO = D("0.005")
 ALLOWED = {
     "ticker": "/api/v5/market/ticker?instId=BTC-USDT",
@@ -221,7 +222,7 @@ def mutate_account(account: dict, market: dict, now: datetime, cycle_key: str) -
         info = [i for i in info if i.get("instId") == "BTC-USDT" and i.get("instType") == "SPOT" and i.get("state") == "live"]
         require(len(info) == 1, "INVALID_INSTRUMENT")
         inst = info[0]
-        b = preview(nav, q["ask"], stop_distance(market, now, q["ask"]), number(inst["lotSz"]), number(inst["tickSz"]), number(inst["minSz"]), BORROW_APR / D(365))
+        b = preview(nav, q["ask"], stop_distance(market, now, q["ask"]), number(inst["lotSz"]), number(inst["tickSz"]), number(inst["minSz"]), FINANCING_RESERVE_RATE)
         reserved = sum((number(p["original_risk_usdt"]) for p in remaining), D(0))
         post_entry_gross = gross + b["quantity"] * q["bid"]
         post_entry_nav = nav - b["fee"] - b["quantity"] * (q["ask"] - q["bid"])
@@ -340,6 +341,7 @@ def build_round(previous: dict, market: dict, *, runner: int, now: datetime, sch
                                    "maintenance_equity_to_gross_ratio": text(MAINTENANCE_RATIO),
                                    "source": "DECLARED_SIMULATION_ASSUMPTIONS_NOT_EXCHANGE_TERMS",
                                    "planned_financing_horizon_hours": 24,
+                                   "planned_financing_reserve_rate": text(FINANCING_RESERVE_RATE),
                                    "exit_model": "OBSERVED_BID_WITH_COSTS_AND_SHARED_DEPTH; delayed observations may exceed planned loss or financing reserve"},
             "continuous_protection": False, "live_order_submitted": False,
             "persistence": "LOCAL_OUTPUT_ONLY_UNTIL_GITHUB_COMMIT_AND_READBACK", "scheduling": {"changes_made": False, "active_state": "UNVERIFIED"}}
